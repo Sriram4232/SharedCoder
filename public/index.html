@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Collaborative IDE - Realtime Multi-User Coding</title>
+  
+  <!-- Typography & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="css/style.css">
+  
+  <!-- SQL.js (SQLite compiled to WASM for local Oracle DB simulation) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+</head>
+<body>
+  
+  <!-- Ambient background glow elements -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- ================= DASHBOARD VIEW ================= -->
+  <main id="dashboard-view" class="view active">
+    <div class="dashboard-container">
+      <header class="dashboard-header">
+        <div class="logo-area animate-fade-in">
+          <i class="fa-solid fa-square-terminal logo-icon"></i>
+          <h1>NEXUS<span>IDE</span></h1>
+        </div>
+        <p class="tagline">Next-Generation Real-Time Collaborative Development Sandbox</p>
+      </header>
+
+      <div class="dashboard-grid">
+        <!-- CREATE ROOM SECTION -->
+        <section class="glass-card create-card animate-slide-up">
+          <div class="card-header">
+            <i class="fa-solid fa-circle-plus card-icon"></i>
+            <h2>Create Workspace</h2>
+          </div>
+          <form id="create-room-form" class="dashboard-form">
+            <div class="input-group">
+              <label for="create-username">Your Name</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="create-username" placeholder="Enter username..." required>
+              </div>
+            </div>
+            
+            <div class="input-group">
+              <label for="create-room-name">Workspace Name</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-folder-open"></i>
+                <input type="text" id="create-room-name" placeholder="E.g., Algorithms Practice..." required>
+              </div>
+            </div>
+            
+            <div class="input-group">
+              <label>Select IDE Environment</label>
+              <div class="lang-selector-grid">
+                <div class="lang-option" data-lang="java">
+                  <div class="lang-glow java-glow"></div>
+                  <i class="fa-brands fa-java lang-icon java-color"></i>
+                  <span class="lang-name">Java IDE</span>
+                  <span class="lang-desc">Standard JDK 21 compiler simulator</span>
+                </div>
+                
+                <div class="lang-option" data-lang="python">
+                  <div class="lang-glow python-glow"></div>
+                  <i class="fa-brands fa-python lang-icon python-color"></i>
+                  <span class="lang-name">Python IDE</span>
+                  <span class="lang-desc">Python 3 execution sandbox</span>
+                </div>
+                
+                <div class="lang-option" data-lang="oracle">
+                  <div class="lang-glow oracle-glow"></div>
+                  <i class="fa-solid fa-database lang-icon oracle-color"></i>
+                  <span class="lang-name">Oracle SQL</span>
+                  <span class="lang-desc">Virtual DB with HR schema explorer</span>
+                </div>
+              </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" id="btn-create-workspace">
+              <span>Launch Workspace</span>
+              <i class="fa-solid fa-rocket"></i>
+            </button>
+          </form>
+        </section>
+
+        <!-- JOIN ROOM SECTION -->
+        <section class="glass-card join-card animate-slide-up delay-100">
+          <div class="card-header">
+            <i class="fa-solid fa-right-to-bracket card-icon"></i>
+            <h2>Join Workspace</h2>
+          </div>
+          <form id="join-room-form" class="dashboard-form">
+            <div class="input-group">
+              <label for="join-username">Your Name</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="join-username" placeholder="Enter username..." required>
+              </div>
+            </div>
+            
+            <div class="input-group">
+              <label for="join-room-id">Workspace ID / Link</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-key"></i>
+                <input type="text" id="join-room-id" placeholder="Paste ID or full invite URL..." required>
+              </div>
+            </div>
+            
+            <button type="submit" class="btn btn-secondary" id="btn-join-workspace">
+              <span>Connect to Room</span>
+              <i class="fa-solid fa-network-wired"></i>
+            </button>
+          </form>
+          
+          <div class="join-info">
+            <p><i class="fa-solid fa-circle-info"></i> Ask your collaborator to send you their workspace ID or the direct URL link from their browser address bar.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- ================= IDE ROOM VIEW ================= -->
+  <div id="room-view" class="view">
+    <!-- TOP NAVBAR -->
+    <header class="room-navbar glass-card">
+      <div class="nav-left">
+        <a href="#" class="nav-logo" id="nav-btn-home">
+          <i class="fa-solid fa-square-terminal logo-icon"></i>
+          <span>NEXUS</span>
+        </a>
+        <div class="nav-separator"></div>
+        <div class="room-meta">
+          <h2 id="display-room-name">Loading Workspace...</h2>
+          <span id="display-room-lang" class="badge">JAVA</span>
+        </div>
+      </div>
+      
+      <div class="nav-center">
+        <div class="invite-share-box">
+          <span class="invite-label">Room ID:</span>
+          <span id="display-room-id" class="room-id-value">---</span>
+          <button id="btn-copy-link" class="btn-icon" title="Copy Invite Link">
+            <i class="fa-solid fa-copy"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div class="nav-right">
+        <!-- Collaborator avatars list -->
+        <div class="collaborator-panel">
+          <span class="collab-text">Collaborators:</span>
+          <div id="avatar-container" class="avatar-row">
+            <!-- Avatars dynamically populated -->
+          </div>
+        </div>
+        
+        <button id="btn-exit" class="btn btn-danger btn-sm">
+          <span>Exit</span>
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- WORKSPACE SPLIT CONTAINER -->
+    <main class="room-workspace">
+      <!-- LEFT PANEL: Monaco Code Editor -->
+      <section class="glass-card workspace-left">
+        <div class="panel-header">
+          <div class="panel-title-tab">
+            <i class="fa-solid fa-code text-primary"></i>
+            <span id="editor-file-title">main.code</span>
+          </div>
+          <div class="panel-actions">
+            <div class="mode-selector" id="workspace-mode-selector">
+              <button type="button" class="mode-btn active" id="btn-mode-global" title="Global Mode: edits and code runs are shared with all members in the room">
+                <i class="fa-solid fa-earth-americas"></i> Global
+              </button>
+              <button type="button" class="mode-btn" id="btn-mode-local" title="Local Mode: edits and runs are private to this browser tab">
+                <i class="fa-solid fa-laptop"></i> Local
+              </button>
+            </div>
+            <span class="sync-status status-success" id="sync-status">
+              <i class="fa-solid fa-circle-check"></i> Connected & Synced
+            </span>
+          </div>
+        </div>
+        <div class="editor-outer-wrapper">
+          <div id="editor-container">
+            <!-- Monaco Editor mounts here -->
+            <div class="editor-loading">
+              <div class="spinner"></div>
+              <span>Configuring IDE Compiler components...</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT PANEL: Chat & Execution Panel -->
+      <section class="workspace-right">
+        <!-- TOP ROW: Live Chat -->
+        <div class="glass-card right-panel-top">
+          <div class="panel-header">
+            <div class="panel-title">
+              <i class="fa-solid fa-comments text-success"></i>
+              <span>Live Chat</span>
+            </div>
+            <span class="chat-status" id="chat-count">1 online</span>
+          </div>
+          <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+              <div class="chat-log-event">Welcome to the Nexus workspace. Share your link with friends to code together!</div>
+            </div>
+            <form id="chat-form" class="chat-input-area">
+              <input type="text" id="chat-input" placeholder="Type a message to collaborators..." autocomplete="off">
+              <button type="submit" class="chat-send-btn" title="Send Message">
+                <i class="fa-solid fa-paper-plane"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- BOTTOM ROW: Runner Console & Oracle Schema -->
+        <div class="glass-card right-panel-bottom tabs-card">
+          <div class="panel-header tabs-header">
+            <div class="tab-buttons">
+              <button class="tab-btn active" data-tab="runner">
+                <i class="fa-solid fa-terminal"></i> Run Console
+              </button>
+              <button class="tab-btn" data-tab="schema" id="tab-oracle-db" style="display: none;">
+                <i class="fa-solid fa-database"></i> DB Explorer
+              </button>
+            </div>
+            <div class="console-actions">
+              <button id="btn-run" class="btn btn-success btn-sm">
+                <span>Run Code</span>
+                <i class="fa-solid fa-play"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="tab-content-container">
+            <!-- TAB 1: RUNNER CONSOLE -->
+            <div class="tab-pane active" id="pane-runner">
+              <div class="console-layout">
+                <div class="console-input-section">
+                  <label for="console-stdin"><i class="fa-solid fa-keyboard"></i> Program Input (stdin)</label>
+                  <textarea id="console-stdin" placeholder="Enter standard inputs here before running code..." rows="2"></textarea>
+                </div>
+                <div class="console-output-section">
+                  <div class="console-output-header">
+                    <span><i class="fa-solid fa-square-poll-horizontal"></i> Execution Output</span>
+                    <button class="btn-link" id="btn-clear-console"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                  </div>
+                  <pre class="console-output" id="console-output">Console is idle. Click "Run Code" above to execute.</pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: ORACLE SCHEMA EXPLORER (DB ONLY) -->
+            <div class="tab-pane" id="pane-schema">
+              <div class="db-explorer-layout">
+                <!-- Schema list -->
+                <div class="db-sidebar">
+                  <div class="db-sidebar-header">
+                    <span><i class="fa-solid fa-folder-tree"></i> Schemas</span>
+                    <button id="btn-reset-db" class="btn-link text-warning" title="Reset Database Schema">
+                      <i class="fa-solid fa-rotate-left"></i> Reset
+                    </button>
+                  </div>
+                  <div class="schema-tree" id="schema-tree">
+                    <!-- Dynamic Tables Schema Render -->
+                  </div>
+                </div>
+                <!-- Data result Grid -->
+                <div class="db-results-panel">
+                  <div class="db-results-header">
+                    <span><i class="fa-solid fa-table-list"></i> Query Output</span>
+                    <span id="db-query-status" class="db-query-status-ok">No queries executed yet</span>
+                  </div>
+                  <div class="db-results-table-wrapper" id="db-results-wrapper">
+                    <div class="db-results-placeholder">
+                      <i class="fa-solid fa-table"></i>
+                      <p>Run your SQL query in the editor to see tabular results here.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Socket.io client script -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Monaco Editor configuration scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
+  
+  <!-- Client JavaScript Logic -->
+  <script src="js/app.js"></script>
+</body>
+</html>
