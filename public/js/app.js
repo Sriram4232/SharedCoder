@@ -272,6 +272,12 @@ function initRoomConnection() {
   // Establish WebSocket connection
   state.socket = io();
   
+  // Handle connection error
+  state.socket.on('connect_error', () => {
+    document.getElementById('sync-status').className = 'sync-status status-error';
+    document.getElementById('sync-status').innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Connection Offline';
+  });
+  
   // Notify connection start
   document.getElementById('sync-status').className = 'sync-status status-loading';
   document.getElementById('sync-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Connecting to room...';
@@ -764,19 +770,24 @@ document.getElementById('btn-run').addEventListener('click', () => {
     runBtn.innerHTML = '<span>Run Code</span><i class="fa-solid fa-play"></i>';
     
     // Server execution errored / disconnected, fallback to simulated run
-    runMockSimulation(code, stdin);
+    runMockSimulation(code, stdin, true);
   });
 });
 
-// Mock simulation of runtime code (used when local compilers are missing)
-function runMockSimulation(code, stdin) {
+// Mock simulation of runtime code (used when local compilers are missing or server is offline)
+function runMockSimulation(code, stdin, isOffline = false) {
   const consoleOut = document.getElementById('console-output');
   consoleOut.className = 'console-output success';
   
   let simulatedOutput = '';
   
-  simulatedOutput += `[System Notice: Local compiler is not set up on this server environment]\n`;
-  simulatedOutput += `[Simulating execution logs inside sandboxed context]\n\n`;
+  if (isOffline) {
+    simulatedOutput += `[System Notice: Collaborative backend server is offline or unreachable]\n`;
+    simulatedOutput += `[Simulating execution logs inside offline sandboxed context]\n\n`;
+  } else {
+    simulatedOutput += `[System Notice: Local compiler is not set up on this server environment]\n`;
+    simulatedOutput += `[Simulating execution logs inside sandboxed context]\n\n`;
+  }
   
   // Let's run a mock analysis of the code
   if (state.language === 'python') {

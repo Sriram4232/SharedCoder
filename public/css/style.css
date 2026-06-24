@@ -714,6 +714,7 @@ h1, h2, h3, h4 {
 
 .status-success { color: var(--color-secondary); }
 .status-loading { color: var(--color-oracle); }
+.status-error { color: var(--color-danger); }
 
 .editor-outer-wrapper {
   flex: 1;
