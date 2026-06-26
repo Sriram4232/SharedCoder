@@ -176,76 +176,47 @@
 
     <!-- WORKSPACE SPLIT CONTAINER -->
     <main class="room-workspace">
-      <!-- LEFT PANEL: Monaco Code Editor -->
-      <section class="glass-card workspace-left">
-        <div class="panel-header">
-          <div class="panel-title-tab">
-            <i class="fa-solid fa-code text-primary"></i>
-            <span id="editor-file-title">main.code</span>
-          </div>
-          <div class="panel-actions">
-            <div class="mode-selector" id="workspace-mode-selector">
-              <button type="button" class="mode-btn active" id="btn-mode-global" title="Global Mode: edits and code runs are shared with all members in the room">
-                <i class="fa-solid fa-earth-americas"></i> Global
-              </button>
-              <button type="button" class="mode-btn" id="btn-mode-local" title="Local Mode: edits and runs are private to this browser tab">
-                <i class="fa-solid fa-laptop"></i> Local
-              </button>
-            </div>
-            <span class="sync-status status-success" id="sync-status">
-              <i class="fa-solid fa-circle-check"></i> Connected & Synced
-            </span>
-          </div>
-        </div>
-        <div class="editor-outer-wrapper">
-          <div id="editor-container">
-            <!-- Monaco Editor mounts here -->
-            <div class="editor-loading">
-              <div class="spinner"></div>
-              <span>Configuring IDE Compiler components...</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- RIGHT PANEL: Chat & Execution Panel -->
-      <section class="workspace-right">
-        <!-- TOP ROW: Live Chat -->
-        <div class="glass-card right-panel-top">
+      <!-- GLOBAL COLUMN (LEFT SIDE) -->
+      <section class="workspace-column global-column">
+        <!-- Global Editor Card -->
+        <div class="glass-card editor-card">
           <div class="panel-header">
-            <div class="panel-title">
-              <i class="fa-solid fa-comments text-success"></i>
-              <span>Live Chat</span>
+            <div class="panel-title-tab">
+              <i class="fa-solid fa-earth-americas text-primary animate-pulse"></i>
+              <span class="column-type-label text-primary">GLOBAL WORKSPACE</span>
+              <span id="global-editor-file-title" class="file-title-span">Main.java</span>
             </div>
-            <span class="chat-status" id="chat-count">1 online</span>
+            <div class="panel-actions">
+              <span class="sync-status status-success" id="sync-status">
+                <i class="fa-solid fa-circle-check"></i> Connected & Synced
+              </span>
+            </div>
           </div>
-          <div class="chat-container">
-            <div class="chat-messages" id="chat-messages">
-              <div class="chat-log-event">Welcome to the Nexus workspace. Share your link with friends to code together!</div>
+          <div class="editor-outer-wrapper">
+            <div id="global-editor-container">
+              <!-- Monaco Editor mounts here -->
+              <div class="editor-loading">
+                <div class="spinner"></div>
+                <span>Configuring Global Compiler components...</span>
+              </div>
             </div>
-            <form id="chat-form" class="chat-input-area">
-              <input type="text" id="chat-input" placeholder="Type a message to collaborators..." autocomplete="off">
-              <button type="submit" class="chat-send-btn" title="Send Message">
-                <i class="fa-solid fa-paper-plane"></i>
-              </button>
-            </form>
           </div>
         </div>
 
-        <!-- BOTTOM ROW: Runner Console & Oracle Schema -->
-        <div class="glass-card right-panel-bottom tabs-card">
+        <!-- Global Console / DB Explorer Card -->
+        <div class="glass-card console-card tabs-card">
           <div class="panel-header tabs-header">
             <div class="tab-buttons">
-              <button class="tab-btn active" data-tab="runner">
-                <i class="fa-solid fa-terminal"></i> Run Console
+              <button class="tab-btn active" data-tab="runner-global">
+                <i class="fa-solid fa-terminal"></i> Global Run Console
               </button>
-              <button class="tab-btn" data-tab="schema" id="tab-oracle-db" style="display: none;">
-                <i class="fa-solid fa-database"></i> DB Explorer
+              <button class="tab-btn" data-tab="schema-global" id="tab-oracle-db-global" style="display: none;">
+                <i class="fa-solid fa-database"></i> Global DB Explorer
               </button>
             </div>
             <div class="console-actions">
-              <button id="btn-run" class="btn btn-success btn-sm">
-                <span>Run Code</span>
+              <button id="btn-run-global" class="btn btn-success btn-sm">
+                <span>Run Global</span>
                 <i class="fa-solid fa-play"></i>
               </button>
             </div>
@@ -253,44 +224,134 @@
 
           <div class="tab-content-container">
             <!-- TAB 1: RUNNER CONSOLE -->
-            <div class="tab-pane active" id="pane-runner">
+            <div class="tab-pane active" id="pane-runner-global">
               <div class="console-layout">
                 <div class="console-input-section">
-                  <label for="console-stdin"><i class="fa-solid fa-keyboard"></i> Program Input (stdin)</label>
-                  <textarea id="console-stdin" placeholder="Enter standard inputs here before running code..." rows="2"></textarea>
+                  <label for="console-stdin-global"><i class="fa-solid fa-keyboard"></i> Program Input (stdin)</label>
+                  <textarea id="console-stdin-global" placeholder="Enter standard inputs here before running code..." rows="2"></textarea>
                 </div>
                 <div class="console-output-section">
                   <div class="console-output-header">
                     <span><i class="fa-solid fa-square-poll-horizontal"></i> Execution Output</span>
-                    <button class="btn-link" id="btn-clear-console"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                    <button class="btn-link" id="btn-clear-console-global"><i class="fa-solid fa-trash-can"></i> Clear</button>
                   </div>
-                  <pre class="console-output" id="console-output">Console is idle. Click "Run Code" above to execute.</pre>
+                  <pre class="console-output" id="console-output-global">Console is idle. Click "Run Global" to execute.</pre>
                 </div>
               </div>
             </div>
 
             <!-- TAB 2: ORACLE SCHEMA EXPLORER (DB ONLY) -->
-            <div class="tab-pane" id="pane-schema">
+            <div class="tab-pane" id="pane-schema-global">
               <div class="db-explorer-layout">
-                <!-- Schema list -->
                 <div class="db-sidebar">
                   <div class="db-sidebar-header">
                     <span><i class="fa-solid fa-folder-tree"></i> Schemas</span>
-                    <button id="btn-reset-db" class="btn-link text-warning" title="Reset Database Schema">
+                    <button id="btn-reset-db-global" class="btn-link text-warning" title="Reset Database Schema">
                       <i class="fa-solid fa-rotate-left"></i> Reset
                     </button>
                   </div>
-                  <div class="schema-tree" id="schema-tree">
-                    <!-- Dynamic Tables Schema Render -->
-                  </div>
+                  <div class="schema-tree" id="schema-tree-global"></div>
                 </div>
-                <!-- Data result Grid -->
                 <div class="db-results-panel">
                   <div class="db-results-header">
                     <span><i class="fa-solid fa-table-list"></i> Query Output</span>
-                    <span id="db-query-status" class="db-query-status-ok">No queries executed yet</span>
+                    <span id="db-query-status-global" class="db-query-status-ok">No queries executed yet</span>
                   </div>
-                  <div class="db-results-table-wrapper" id="db-results-wrapper">
+                  <div class="db-results-table-wrapper" id="db-results-wrapper-global">
+                    <div class="db-results-placeholder">
+                      <i class="fa-solid fa-table"></i>
+                      <p>Run your SQL query in the editor to see tabular results here.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LOCAL COLUMN (RIGHT SIDE) -->
+      <section class="workspace-column local-column">
+        <!-- Local Editor Card -->
+        <div class="glass-card editor-card">
+          <div class="panel-header">
+            <div class="panel-title-tab">
+              <i class="fa-solid fa-laptop text-secondary"></i>
+              <span class="column-type-label text-secondary">LOCAL PRIVATE SANDBOX</span>
+              <span id="local-editor-file-title" class="file-title-span">Main.java</span>
+            </div>
+            <div class="panel-actions">
+              <span class="sync-status status-disconnected">
+                <i class="fa-solid fa-laptop-code"></i> Local (Private Sandbox)
+              </span>
+            </div>
+          </div>
+          <div class="editor-outer-wrapper">
+            <div id="local-editor-container">
+              <!-- Monaco Editor mounts here -->
+              <div class="editor-loading">
+                <div class="spinner"></div>
+                <span>Configuring Local Sandbox components...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Local Console / DB Explorer Card -->
+        <div class="glass-card console-card tabs-card">
+          <div class="panel-header tabs-header">
+            <div class="tab-buttons">
+              <button class="tab-btn active" data-tab="runner-local">
+                <i class="fa-solid fa-terminal"></i> Local Run Console
+              </button>
+              <button class="tab-btn" data-tab="schema-local" id="tab-oracle-db-local" style="display: none;">
+                <i class="fa-solid fa-database"></i> Local DB Explorer
+              </button>
+            </div>
+            <div class="console-actions">
+              <button id="btn-run-local" class="btn btn-secondary btn-sm">
+                <span>Run Local</span>
+                <i class="fa-solid fa-play"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="tab-content-container">
+            <!-- TAB 1: RUNNER CONSOLE -->
+            <div class="tab-pane active" id="pane-runner-local">
+              <div class="console-layout">
+                <div class="console-input-section">
+                  <label for="console-stdin-local"><i class="fa-solid fa-keyboard"></i> Program Input (stdin)</label>
+                  <textarea id="console-stdin-local" placeholder="Enter standard inputs here before running code..." rows="2"></textarea>
+                </div>
+                <div class="console-output-section">
+                  <div class="console-output-header">
+                    <span><i class="fa-solid fa-square-poll-horizontal"></i> Execution Output</span>
+                    <button class="btn-link" id="btn-clear-console-local"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                  </div>
+                  <pre class="console-output" id="console-output-local">Console is idle. Click "Run Local" to execute.</pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: ORACLE SCHEMA EXPLORER (DB ONLY) -->
+            <div class="tab-pane" id="pane-schema-local">
+              <div class="db-explorer-layout">
+                <div class="db-sidebar">
+                  <div class="db-sidebar-header">
+                    <span><i class="fa-solid fa-folder-tree"></i> Schemas</span>
+                    <button id="btn-reset-db-local" class="btn-link text-warning" title="Reset Database Schema">
+                      <i class="fa-solid fa-rotate-left"></i> Reset
+                    </button>
+                  </div>
+                  <div class="schema-tree" id="schema-tree-local"></div>
+                </div>
+                <div class="db-results-panel">
+                  <div class="db-results-header">
+                    <span><i class="fa-solid fa-table-list"></i> Query Output</span>
+                    <span id="db-query-status-local" class="db-query-status-ok">No queries executed yet</span>
+                  </div>
+                  <div class="db-results-table-wrapper" id="db-results-wrapper-local">
                     <div class="db-results-placeholder">
                       <i class="fa-solid fa-table"></i>
                       <p>Run your SQL query in the editor to see tabular results here.</p>
@@ -303,6 +364,47 @@
         </div>
       </section>
     </main>
+
+    <!-- WORKSPACE FOOTER STATUS BAR -->
+    <footer class="room-footer glass-card">
+      <div class="footer-left">
+        <button id="btn-toggle-chat" class="btn btn-primary chat-toggle-btn">
+          <i class="fa-solid fa-comments"></i>
+          <span>Live Room Chat</span>
+          <span id="chat-badge" class="chat-badge" style="display: none;">0</span>
+        </button>
+      </div>
+      <div class="footer-center">
+        <span class="footer-info-text"><i class="fa-solid fa-network-wired"></i> Multi-User Sync Environment Active</span>
+      </div>
+      <div class="footer-right">
+        <span id="system-status-indicator" class="indicator-active"><i class="fa-solid fa-circle"></i> Service Online</span>
+      </div>
+    </footer>
+
+    <!-- SLIDING CHAT SIDEBAR -->
+    <aside id="chat-sidebar" class="chat-sidebar glass-card">
+      <div class="panel-header">
+        <div class="panel-title">
+          <i class="fa-solid fa-comments text-success"></i>
+          <span>Live Workspace Chat</span>
+        </div>
+        <button id="btn-close-chat" class="btn-icon" title="Close Chat">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-log-event">Welcome to the Nexus workspace. Share your link with friends to code together!</div>
+        </div>
+        <form id="chat-form" class="chat-input-area">
+          <input type="text" id="chat-input" placeholder="Type a message to collaborators..." autocomplete="off">
+          <button type="submit" class="chat-send-btn" title="Send Message">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </form>
+      </div>
+    </aside>
   </div>
 
   <!-- Socket.io client script -->

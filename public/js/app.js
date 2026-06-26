@@ -5,7 +5,8 @@
 // Global State Object
 const state = {
   socket: null,
-  editor: null,
+  globalEditor: null,
+  localEditor: null,
   db: null,
   roomId: null,
   username: null,
@@ -13,8 +14,7 @@ const state = {
   collaborators: {},
   remoteCursors: {},
   isApplyingRemoteChanges: false,
-  selfId: null,
-  editMode: 'global' // 'global' | 'local'
+  selfId: null
 };
 
 // ==========================================================================
@@ -111,49 +111,22 @@ window.addEventListener('load', () => {
   // Set default language selection to Java
   document.querySelector('.lang-option[data-lang="java"]').classList.add('selected');
   
-  // Setup Workspace Mode Toggle
-  const btnGlobal = document.getElementById('btn-mode-global');
-  const btnLocal = document.getElementById('btn-mode-local');
+  // Setup Chat Sidebar Toggle
+  const btnToggleChat = document.getElementById('btn-toggle-chat');
+  const btnCloseChat = document.getElementById('btn-close-chat');
+  const chatSidebar = document.getElementById('chat-sidebar');
   
-  if (btnGlobal && btnLocal) {
-    btnGlobal.addEventListener('click', () => {
-      if (state.editMode === 'global') return;
-      state.editMode = 'global';
-      btnLocal.classList.remove('active');
-      btnGlobal.classList.add('active');
-      
-      const statusSpan = document.getElementById('sync-status');
-      statusSpan.className = 'sync-status status-success';
-      statusSpan.innerHTML = '<i class="fa-solid fa-circle-check"></i> Connected & Synced';
-      
-      // Sync current local text to overwrite room buffer
-      if (state.socket && state.editor) {
-        state.socket.emit('sync-full-code', {
-          roomId: state.roomId,
-          fullCode: state.editor.getValue()
-        });
-      }
-      showToast('Switched to Global Mode. Workspace is synchronized.', 'success');
+  if (btnToggleChat && btnCloseChat && chatSidebar) {
+    btnToggleChat.addEventListener('click', () => {
+      chatSidebar.classList.toggle('visible');
+      // Hide badge count when chat sidebar is opened
+      const chatBadge = document.getElementById('chat-badge');
+      chatBadge.style.display = 'none';
+      chatBadge.textContent = '0';
     });
     
-    btnLocal.addEventListener('click', () => {
-      if (state.editMode === 'local') return;
-      state.editMode = 'local';
-      btnGlobal.classList.remove('active');
-      btnLocal.classList.add('active');
-      
-      const statusSpan = document.getElementById('sync-status');
-      statusSpan.className = 'sync-status status-disconnected';
-      statusSpan.innerHTML = '<i class="fa-solid fa-laptop-code"></i> Local (Private Sandbox)';
-      
-      // Clear peer cursors since templates will drift
-      if (state.editor) {
-        Object.keys(state.remoteCursors).forEach(userId => {
-          state.editor.deltaDecorations(state.remoteCursors[userId], []);
-          delete state.remoteCursors[userId];
-        });
-      }
-      showToast('Switched to Local Mode. Editor changes are private.', 'info');
+    btnCloseChat.addEventListener('click', () => {
+      chatSidebar.classList.remove('visible');
     });
   }
   
@@ -243,18 +216,21 @@ document.getElementById('btn-clear-console').addEventListener('click', () => {
 });
 
 // Tab navigation handler
+// Scoped Tab navigation handler (scoped to parent card container)
 const tabButtons = document.querySelectorAll('.tab-btn');
 tabButtons.forEach(btn => {
   btn.addEventListener('click', () => {
+    const parentCard = btn.closest('.tabs-card');
+    if (!parentCard) return;
+    
     const targetTab = btn.getAttribute('data-tab');
     
-    // Toggle active state on buttons
-    tabButtons.forEach(b => b.classList.remove('active'));
+    // Toggle active state on buttons within this card
+    parentCard.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     
-    // Toggle active state on panes
-    const tabPanes = document.querySelectorAll('.tab-pane');
-    tabPanes.forEach(pane => {
+    // Toggle active state on panes within this card
+    parentCard.querySelectorAll('.tab-pane').forEach(pane => {
       pane.classList.remove('active');
       if (pane.id === `pane-${targetTab}`) {
         pane.classList.add('active');
@@ -309,17 +285,22 @@ function initRoomConnection() {
     langBadge.textContent = displayLangs[language] || language.toUpperCase();
     langBadge.className = `badge ${language}-badge`;
     
-    document.getElementById('editor-file-title').textContent = fileLangs[language] || 'main.code';
+    document.getElementById('global-editor-file-title').textContent = fileLangs[language] || 'main.code';
+    document.getElementById('local-editor-file-title').textContent = fileLangs[language] || 'main.code';
     
     // Update UI for Oracle SQL
-    const tabOracle = document.getElementById('tab-oracle-db');
+    const tabOracleGlobal = document.getElementById('tab-oracle-db-global');
+    const tabOracleLocal = document.getElementById('tab-oracle-db-local');
     if (language === 'oracle') {
-      tabOracle.style.display = 'flex';
+      tabOracleGlobal.style.display = 'flex';
+      tabOracleLocal.style.display = 'flex';
       initOracleDB(); // Initialize SQLite Virtual Engine
     } else {
-      tabOracle.style.display = 'none';
+      tabOracleGlobal.style.display = 'none';
+      tabOracleLocal.style.display = 'none';
       // Switch back to runner console tab if SQL was active
-      document.querySelector('.tab-btn[data-tab="runner"]').click();
+      document.querySelector('.tab-btn[data-tab="runner-global"]').click();
+      document.querySelector('.tab-btn[data-tab="runner-local"]').click();
     }
     
     // Initialize Monaco Editor with language and code values
@@ -332,7 +313,6 @@ function initRoomConnection() {
     document.getElementById('sync-status').className = 'sync-status status-success';
     document.getElementById('sync-status').innerHTML = '<i class="fa-solid fa-circle-check"></i> Connected & Synced';
     
-    document.getElementById('chat-count').textContent = `${Object.keys(users).length} online`;
     showToast(`Successfully connected to ${savedRoomName}!`, 'success');
   });
   
@@ -341,28 +321,29 @@ function initRoomConnection() {
     state.collaborators[userId] = user;
     renderCollaboratorAvatars();
     
-    // Update chat active count
-    const totalUsers = Object.keys(state.collaborators).length;
-    document.getElementById('chat-count').textContent = `${totalUsers} online`;
-    
     // Write system join log in chat
     appendChatLog(`${user.username} has joined the workspace.`);
     showToast(`${user.username} entered the room.`, 'info');
+    
+    // Increment chat badge count if sidebar is closed
+    const chatSidebar = document.getElementById('chat-sidebar');
+    if (chatSidebar && !chatSidebar.classList.contains('visible')) {
+      const chatBadge = document.getElementById('chat-badge');
+      chatBadge.style.display = 'inline-block';
+      chatBadge.textContent = parseInt(chatBadge.textContent || '0') + 1;
+    }
   });
   
   // Handle user leaves
   state.socket.on('user-left', ({ userId, username }) => {
     // Clear user visual decorations
-    if (state.remoteCursors[userId]) {
-      state.editor.deltaDecorations(state.remoteCursors[userId], []);
+    if (state.remoteCursors[userId] && state.globalEditor) {
+      state.globalEditor.deltaDecorations(state.remoteCursors[userId], []);
       delete state.remoteCursors[userId];
     }
     
     delete state.collaborators[userId];
     renderCollaboratorAvatars();
-    
-    const totalUsers = Object.keys(state.collaborators).length;
-    document.getElementById('chat-count').textContent = `${totalUsers} online`;
     
     appendChatLog(`${username} has left the workspace.`);
     showToast(`${username} left the room.`, 'warning');
@@ -374,14 +355,12 @@ function initRoomConnection() {
   
   // Receive code changes from peers
   state.socket.on('code-change', ({ changes }) => {
-    if (!state.editor || state.editMode === 'local') return;
+    if (!state.globalEditor) return;
     
     state.isApplyingRemoteChanges = true;
     
-    const model = state.editor.getModel();
-    
-    // Apply Monaco Edits
-    state.editor.executeEdits('remote-sync', changes.map(change => ({
+    // Apply Monaco Edits to Global Editor
+    state.globalEditor.executeEdits('remote-sync', changes.map(change => ({
       range: new monaco.Range(
         change.range.startLineNumber,
         change.range.startColumn,
@@ -394,45 +373,41 @@ function initRoomConnection() {
     
     state.isApplyingRemoteChanges = false;
   });
-
+ 
   // Receive full code override
   state.socket.on('code-override', ({ fullCode }) => {
-    if (!state.editor || state.editMode === 'local') return;
+    if (!state.globalEditor) return;
     
     state.isApplyingRemoteChanges = true;
-    state.editor.setValue(fullCode);
+    state.globalEditor.setValue(fullCode);
     state.isApplyingRemoteChanges = false;
     showToast('Workspace synchronized by collaborator.', 'info');
   });
-
+ 
   // Receive global execution indicators
   state.socket.on('global-run-start', ({ username }) => {
-    if (state.editMode === 'local') return;
-    
-    const runBtn = document.getElementById('btn-run');
-    const consoleOut = document.getElementById('console-output');
+    const runBtn = document.getElementById('btn-run-global');
+    const consoleOut = document.getElementById('console-output-global');
     
     // Auto shift view to runner console tab
-    document.querySelector('.tab-btn[data-tab="runner"]').click();
+    document.querySelector('.tab-btn[data-tab="runner-global"]').click();
     
     consoleOut.className = 'console-output running';
     consoleOut.textContent = `[Global Run] Initiated by ${username}...\nLaunching compiler runner process...\n`;
     runBtn.disabled = true;
     runBtn.innerHTML = '<span>Running...</span><i class="fa-solid fa-spinner fa-spin"></i>';
   });
-
+ 
   // Receive global execution results
   state.socket.on('global-run-result', (data) => {
-    if (state.editMode === 'local') return;
-    
-    const runBtn = document.getElementById('btn-run');
-    const consoleOut = document.getElementById('console-output');
+    const runBtn = document.getElementById('btn-run-global');
+    const consoleOut = document.getElementById('console-output-global');
     
     runBtn.disabled = false;
-    runBtn.innerHTML = '<span>Run Code</span><i class="fa-solid fa-play"></i>';
+    runBtn.innerHTML = '<span>Run Global</span><i class="fa-solid fa-play"></i>';
     
     if (data.error === 'compiler_missing') {
-      runMockSimulation(state.editor.getValue(), document.getElementById('console-stdin').value);
+      runMockSimulation(state.globalEditor.getValue(), document.getElementById('console-stdin-global').value, false, 'global');
       return;
     }
     
@@ -446,19 +421,17 @@ function initRoomConnection() {
       showToast('Global execution exited with error.', 'error');
     }
   });
-
+ 
   // Receive global SQL query run
   state.socket.on('global-sql-run', ({ sqlText, username }) => {
-    if (state.editMode === 'local') return;
-    
     showToast(`${username} executed a SQL query globally.`, 'info');
-    // Execute query locally on client-side DB
-    executeSQLQuery(sqlText);
+    // Execute query locally on client-side DB in Global frame
+    executeSQLQuery(sqlText, 'global');
   });
   
   // Receive cursor coordinates updates from peers
   state.socket.on('cursor-move', ({ userId, user, position, selection }) => {
-    if (!state.editor || state.editMode === 'local') return;
+    if (!state.globalEditor) return;
     
     // Proactively inject user cursors styling rules
     injectUserStyleRules(userId, user.username, user.color);
@@ -488,12 +461,20 @@ function initRoomConnection() {
       });
     }
     
-    state.remoteCursors[userId] = state.editor.deltaDecorations(oldDecorations, newDecorations);
+    state.remoteCursors[userId] = state.globalEditor.deltaDecorations(oldDecorations, newDecorations);
   });
   
   // Chat stream messages
   state.socket.on('chat-message', (msg) => {
     appendChatMessage(msg);
+    
+    // Increment chat badge count if sidebar is closed
+    const chatSidebar = document.getElementById('chat-sidebar');
+    if (chatSidebar && !chatSidebar.classList.contains('visible')) {
+      const chatBadge = document.getElementById('chat-badge');
+      chatBadge.style.display = 'inline-block';
+      chatBadge.textContent = parseInt(chatBadge.textContent || '0') + 1;
+    }
   });
 }
 
@@ -560,19 +541,19 @@ function injectUserStyleRules(userId, username, color) {
 // MONACO EDITOR LOADER & CONFIG
 // ==========================================================================
 function initMonacoEditor(initialCode, language) {
-  // Load editor assets using AMD loader config
   require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
   
   require(['vs/editor/editor.main'], function () {
-    const editorContainer = document.getElementById('editor-container');
-    editorContainer.innerHTML = ''; // clear loading state
+    const globalContainer = document.getElementById('global-editor-container');
+    globalContainer.innerHTML = '';
     
-    // Map languages standard Monaco tokens
+    const localContainer = document.getElementById('local-editor-container');
+    localContainer.innerHTML = '';
+    
     const monacoLangs = { java: 'java', python: 'python', oracle: 'sql' };
     const currentEditorLang = monacoLangs[language] || 'plaintext';
     
-    // Build Editor
-    state.editor = monaco.editor.create(editorContainer, {
+    const commonOptions = {
       value: initialCode,
       language: currentEditorLang,
       theme: 'vs-dark',
@@ -592,48 +573,46 @@ function initMonacoEditor(initialCode, language) {
       cursorSmoothCaretAnimation: 'on',
       wordWrap: 'on',
       padding: { top: 12 }
-    });
+    };
     
-    // Listen for code changes (Local Typing)
-    state.editor.onDidChangeModelContent((event) => {
+    // Build Global Editor
+    state.globalEditor = monaco.editor.create(globalContainer, commonOptions);
+    
+    // Build Local Editor
+    state.localEditor = monaco.editor.create(localContainer, commonOptions);
+    
+    // Listen for code changes (Global Typing)
+    state.globalEditor.onDidChangeModelContent((event) => {
       if (state.isApplyingRemoteChanges) return; // avoid looping echoes
-      
-      const fullCode = state.editor.getValue();
-      
-      // Emit changes to WebSockets backend if in Global Mode
-      if (state.editMode === 'global') {
-        state.socket.emit('code-change', {
-          roomId: state.roomId,
-          changes: event.changes,
-          fullCode: fullCode
-        });
-      }
+      const fullCode = state.globalEditor.getValue();
+      state.socket.emit('code-change', {
+        roomId: state.roomId,
+        changes: event.changes,
+        fullCode: fullCode
+      });
     });
     
-    // Listen for cursor position adjustments
-    state.editor.onDidChangeCursorPosition((e) => {
-      if (state.editMode === 'global') {
-        const selection = state.editor.getSelection();
-        state.socket.emit('cursor-move', {
-          roomId: state.roomId,
-          position: e.position,
-          selection: selection
-        });
-      }
+    // Listen for cursor position adjustments (Global Editor only)
+    state.globalEditor.onDidChangeCursorPosition((e) => {
+      const selection = state.globalEditor.getSelection();
+      state.socket.emit('cursor-move', {
+        roomId: state.roomId,
+        position: e.position,
+        selection: selection
+      });
     });
     
-    // Listen for cursor selection selections
-    state.editor.onDidChangeCursorSelection((e) => {
-      if (state.editMode === 'global') {
-        state.socket.emit('cursor-move', {
-          roomId: state.roomId,
-          position: state.editor.getPosition(),
-          selection: e.selection
-        });
-      }
+    // Listen for cursor selection selections (Global Editor only)
+    state.globalEditor.onDidChangeCursorSelection((e) => {
+      state.socket.emit('cursor-move', {
+        roomId: state.roomId,
+        position: state.globalEditor.getPosition(),
+        selection: e.selection
+      });
     });
   });
 }
+
 
 // ==========================================================================
 // LIVE CHAT ROOM LOGIC
@@ -702,35 +681,50 @@ function escapeHTML(str) {
 // ==========================================================================
 // CODE COMPILATION RUNNER
 // ==========================================================================
-document.getElementById('btn-run').addEventListener('click', () => {
-  const runBtn = document.getElementById('btn-run');
-  const consoleOut = document.getElementById('console-output');
+// ==========================================================================
+// CODE COMPILATION RUNNERS (GLOBAL & LOCAL)
+// ==========================================================================
+
+// Global Runner Action
+document.getElementById('btn-run-global').addEventListener('click', () => {
+  const runBtn = document.getElementById('btn-run-global');
+  const consoleOut = document.getElementById('console-output-global');
   
-  if (!state.editor) return;
+  if (!state.globalEditor) return;
   
-  const code = state.editor.getValue();
-  const stdin = document.getElementById('console-stdin').value;
+  const code = state.globalEditor.getValue();
+  const stdin = document.getElementById('console-stdin-global').value;
   
   // SQL evaluation override
   if (state.language === 'oracle') {
-    if (state.editMode === 'local') {
-      executeSQLQuery(code);
-    } else {
-      executeSQLQuery(code);
-      // Broadcast SQL run statement to all other peers
-      state.socket.emit('run-sql', { roomId: state.roomId, sqlText: code });
-    }
+    executeSQLQuery(code, 'global');
+    // Broadcast SQL run statement to all other peers
+    state.socket.emit('run-sql', { roomId: state.roomId, sqlText: code });
     return;
   }
   
-  // If running code globally, emit websocket trigger instead of calling fetch directly
-  if (state.editMode === 'global') {
-    state.socket.emit('run-code', {
-      roomId: state.roomId,
-      code: code,
-      stdin: stdin,
-      language: state.language
-    });
+  // Emit websocket trigger for collaborative running on server
+  state.socket.emit('run-code', {
+    roomId: state.roomId,
+    code: code,
+    stdin: stdin,
+    language: state.language
+  });
+});
+
+// Local Runner Action
+document.getElementById('btn-run-local').addEventListener('click', () => {
+  const runBtn = document.getElementById('btn-run-local');
+  const consoleOut = document.getElementById('console-output-local');
+  
+  if (!state.localEditor) return;
+  
+  const code = state.localEditor.getValue();
+  const stdin = document.getElementById('console-stdin-local').value;
+  
+  // SQL evaluation override (runs purely locally in client DB sandbox)
+  if (state.language === 'oracle') {
+    executeSQLQuery(code, 'local');
     return;
   }
   
@@ -740,7 +734,7 @@ document.getElementById('btn-run').addEventListener('click', () => {
   runBtn.disabled = true;
   runBtn.innerHTML = '<span>Running...</span><i class="fa-solid fa-spinner fa-spin"></i>';
   
-  // Trigger Server compilation
+  // Trigger Server compilation directly (private sandbox run)
   fetch('/api/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -749,18 +743,17 @@ document.getElementById('btn-run').addEventListener('click', () => {
   .then(res => res.json())
   .then(data => {
     runBtn.disabled = false;
-    runBtn.innerHTML = '<span>Run Code</span><i class="fa-solid fa-play"></i>';
+    runBtn.innerHTML = '<span>Run Local</span><i class="fa-solid fa-play"></i>';
     
     if (data.error === 'compiler_missing') {
-      // Execute mock program simulation locally
-      runMockSimulation(code, stdin);
+      runMockSimulation(code, stdin, false, 'local');
       return;
     }
     
     if (data.success) {
       consoleOut.className = 'console-output success';
       consoleOut.textContent = data.output || '(No console outputs)';
-      showToast('Execution completed successfully.', 'success');
+      showToast('Local execution completed successfully.', 'success');
     } else {
       consoleOut.className = 'console-output error';
       consoleOut.textContent = data.output || 'Compiler execution error.';
@@ -769,16 +762,29 @@ document.getElementById('btn-run').addEventListener('click', () => {
   })
   .catch(err => {
     runBtn.disabled = false;
-    runBtn.innerHTML = '<span>Run Code</span><i class="fa-solid fa-play"></i>';
+    runBtn.innerHTML = '<span>Run Local</span><i class="fa-solid fa-play"></i>';
     
     // Server execution errored / disconnected, fallback to simulated run
-    runMockSimulation(code, stdin, true);
+    runMockSimulation(code, stdin, true, 'local');
   });
 });
 
+// Clear console buttons
+document.getElementById('btn-clear-console-global').addEventListener('click', () => {
+  const consoleOut = document.getElementById('console-output-global');
+  consoleOut.className = 'console-output';
+  consoleOut.textContent = 'Console cleared. Ready to execute code.';
+});
+
+document.getElementById('btn-clear-console-local').addEventListener('click', () => {
+  const consoleOut = document.getElementById('console-output-local');
+  consoleOut.className = 'console-output';
+  consoleOut.textContent = 'Console cleared. Ready to execute code.';
+});
+
 // Mock simulation of runtime code (used when local compilers are missing or server is offline)
-function runMockSimulation(code, stdin, isOffline = false) {
-  const consoleOut = document.getElementById('console-output');
+function runMockSimulation(code, stdin, isOffline = false, consoleTarget = 'global') {
+  const consoleOut = document.getElementById(consoleTarget === 'global' ? 'console-output-global' : 'console-output-local');
   consoleOut.className = 'console-output success';
   
   let simulatedOutput = '';
@@ -835,8 +841,12 @@ function runMockSimulation(code, stdin, isOffline = false) {
 // ORACLE DATABASE CLIENT ENGINE (SQLITE WASM PORT)
 // ==========================================================================
 function initOracleDB() {
-  const schemaTree = document.getElementById('schema-tree');
-  schemaTree.innerHTML = '<div class="chat-status"><i class="fa-solid fa-spinner fa-spin"></i> Initializing db...</div>';
+  ['global', 'local'].forEach(target => {
+    const schemaTree = document.getElementById(`schema-tree-${target}`);
+    if (schemaTree) {
+      schemaTree.innerHTML = '<div class="chat-status"><i class="fa-solid fa-spinner fa-spin"></i> Initializing db...</div>';
+    }
+  });
   
   // Config locate file for sqlite WASM loaded from public CDNs
   initSqlJs({
@@ -853,7 +863,12 @@ function initOracleDB() {
     showToast('Oracle HR Virtual Database loaded successfully.', 'success');
   }).catch(err => {
     console.error(err);
-    schemaTree.innerHTML = '<div class="text-warning"><i class="fa-solid fa-triangle-exclamation"></i> Error loading DB WASM</div>';
+    ['global', 'local'].forEach(target => {
+      const schemaTree = document.getElementById(`schema-tree-${target}`);
+      if (schemaTree) {
+        schemaTree.innerHTML = '<div class="text-warning"><i class="fa-solid fa-triangle-exclamation"></i> Error loading DB WASM</div>';
+      }
+    });
     showToast('Failed to initialize WebAssembly Relational Database.', 'error');
   });
 }
@@ -958,74 +973,90 @@ function resetDatabaseSchema() {
 
 function renderDBSchemaTree() {
   if (!state.db) return;
-  const treeContainer = document.getElementById('schema-tree');
-  treeContainer.innerHTML = '';
   
-  // Tables to inspect
-  const tables = ['EMPLOYEES', 'DEPARTMENTS', 'JOBS', 'LOCATIONS'];
-  
-  tables.forEach(tableName => {
-    const node = document.createElement('div');
-    node.className = 'schema-table-node';
+  ['global', 'local'].forEach(target => {
+    const treeContainer = document.getElementById(`schema-tree-${target}`);
+    if (!treeContainer) return;
+    treeContainer.innerHTML = '';
     
-    node.innerHTML = `
-      <div class="schema-table-name"><i class="fa-solid fa-table"></i> ${tableName}</div>
-      <div class="schema-column-list" id="schema-cols-${tableName.toLowerCase()}"></div>
-    `;
-    treeContainer.appendChild(node);
+    // Tables to inspect
+    const tables = ['EMPLOYEES', 'DEPARTMENTS', 'JOBS', 'LOCATIONS'];
     
-    // Query sqlite table columns info
-    try {
-      const res = state.db.exec(`PRAGMA table_info(${tableName.toLowerCase()});`);
-      if (res.length > 0) {
-        const columns = res[0].values;
-        const colContainer = document.getElementById(`schema-cols-${tableName.toLowerCase()}`);
-        
-        columns.forEach(col => {
-          const colName = col[1];
-          const colType = col[2];
-          const isPk = col[5] === 1;
+    tables.forEach(tableName => {
+      const node = document.createElement('div');
+      node.className = 'schema-table-node';
+      
+      node.innerHTML = `
+        <div class="schema-table-name"><i class="fa-solid fa-table"></i> ${tableName}</div>
+        <div class="schema-column-list" id="schema-cols-${target}-${tableName.toLowerCase()}"></div>
+      `;
+      treeContainer.appendChild(node);
+      
+      // Query sqlite table columns info
+      try {
+        const res = state.db.exec(`PRAGMA table_info(${tableName.toLowerCase()});`);
+        if (res.length > 0) {
+          const columns = res[0].values;
+          const colContainer = document.getElementById(`schema-cols-${target}-${tableName.toLowerCase()}`);
           
-          const colItem = document.createElement('div');
-          colItem.className = 'schema-column-item';
-          colItem.innerHTML = `
-            <span>${colName} ${isPk ? '<i class="fa-solid fa-key text-warning" style="font-size:0.6rem"></i>' : ''}</span>
-            <span class="schema-col-type">${colType}</span>
-          `;
-          colContainer.appendChild(colItem);
-        });
+          columns.forEach(col => {
+            const colName = col[1];
+            const colType = col[2];
+            const isPk = col[5] === 1;
+            
+            const colItem = document.createElement('div');
+            colItem.className = 'schema-column-item';
+            colItem.innerHTML = `
+              <span>${colName} ${isPk ? '<i class="fa-solid fa-key text-warning" style="font-size:0.6rem"></i>' : ''}</span>
+              <span class="schema-col-type">${colType}</span>
+            `;
+            colContainer.appendChild(colItem);
+          });
+        }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    });
   });
 }
 
-// Reset Database Trigger
-document.getElementById('btn-reset-db').addEventListener('click', () => {
-  if (confirm('Restoring default Oracle DB tables will discard your current SQLite modifications (updates, inserts, drops). Proceed?')) {
-    resetDatabaseSchema();
-    renderDBSchemaTree();
-    
-    const wrapper = document.getElementById('db-results-wrapper');
-    wrapper.innerHTML = `
-      <div class="db-results-placeholder">
-        <i class="fa-solid fa-table"></i>
-        <p>Database schema reset! Run a SQL query in the editor to view results here.</p>
-      </div>
-    `;
-    
-    document.getElementById('db-query-status').className = 'db-query-status-ok';
-    document.getElementById('db-query-status').textContent = 'Database Schema Reset Complete';
-    showToast('Database reset to baseline HR schema.', 'info');
+// Reset Database Triggers
+['global', 'local'].forEach(target => {
+  const btnReset = document.getElementById(`btn-reset-db-${target}`);
+  if (btnReset) {
+    btnReset.addEventListener('click', () => {
+      if (confirm('Restoring default Oracle DB tables will discard your current SQLite modifications (updates, inserts, drops). Proceed?')) {
+        resetDatabaseSchema();
+        renderDBSchemaTree();
+        
+        ['global', 'local'].forEach(t => {
+          const wrapper = document.getElementById(`db-results-wrapper-${t}`);
+          if (wrapper) {
+            wrapper.innerHTML = `
+              <div class="db-results-placeholder">
+                <i class="fa-solid fa-table"></i>
+                <p>Database schema reset! Run a SQL query in the editor to view results here.</p>
+              </div>
+            `;
+          }
+          const statusLabel = document.getElementById(`db-query-status-${t}`);
+          if (statusLabel) {
+            statusLabel.className = 'db-query-status-ok';
+            statusLabel.textContent = 'Database Schema Reset Complete';
+          }
+        });
+        
+        showToast('Database reset to baseline HR schema.', 'info');
+      }
+    });
   }
 });
 
 // Run virtual Oracle DB SQL query
-function executeSQLQuery(sqlText) {
-  const runBtn = document.getElementById('btn-run');
-  const resultsWrapper = document.getElementById('db-results-wrapper');
-  const statusLabel = document.getElementById('db-query-status');
+function executeSQLQuery(sqlText, target = 'global') {
+  const runBtn = document.getElementById(target === 'global' ? 'btn-run-global' : 'btn-run-local');
+  const resultsWrapper = document.getElementById(target === 'global' ? 'db-results-wrapper-global' : 'db-results-wrapper-local');
+  const statusLabel = document.getElementById(target === 'global' ? 'db-query-status-global' : 'db-query-status-local');
   
   if (!state.db) {
     showToast('Database engine is still compiling...', 'warning');
@@ -1033,7 +1064,7 @@ function executeSQLQuery(sqlText) {
   }
   
   // Shift UI active tab focus to DB Explorer automatically
-  document.querySelector('.tab-btn[data-tab="schema"]').click();
+  document.querySelector(`.tab-btn[data-tab="schema-${target}"]`).click();
   
   runBtn.disabled = true;
   runBtn.innerHTML = '<span>Running Query...</span><i class="fa-solid fa-spinner fa-spin"></i>';
@@ -1044,7 +1075,7 @@ function executeSQLQuery(sqlText) {
       const res = state.db.exec(sqlText);
       
       runBtn.disabled = false;
-      runBtn.innerHTML = '<span>Run Code</span><i class="fa-solid fa-play"></i>';
+      runBtn.innerHTML = `<span>Run ${target === 'global' ? 'Global' : 'Local'}</span><i class="fa-solid fa-play"></i>`;
       
       if (res.length === 0) {
         // Query completed without returning data (e.g. UPDATE, INSERT, DELETE)
@@ -1092,7 +1123,7 @@ function executeSQLQuery(sqlText) {
       
     } catch (err) {
       runBtn.disabled = false;
-      runBtn.innerHTML = '<span>Run Code</span><i class="fa-solid fa-play"></i>';
+      runBtn.innerHTML = `<span>Run ${target === 'global' ? 'Global' : 'Local'}</span><i class="fa-solid fa-play"></i>`;
       
       statusLabel.className = 'db-query-status-err';
       statusLabel.textContent = 'SQL Compilation Error';
