@@ -269,8 +269,10 @@ tabButtons.forEach(btn => {
 function initRoomConnection() {
   if (state.socket) return; // Prevent double setup
   
-  // Establish WebSocket connection
-  state.socket = io();
+  // Establish WebSocket connection using only websockets to support Render free tier load balancing (no sticky sessions)
+  state.socket = io({
+    transports: ['websocket']
+  });
   
   // Handle connection error
   state.socket.on('connect_error', () => {
